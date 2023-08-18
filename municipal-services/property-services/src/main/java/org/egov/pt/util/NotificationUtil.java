@@ -152,7 +152,7 @@ public class NotificationUtil {
         StringBuilder uri = new StringBuilder();
         uri.append(config.getLocalizationHost()).append(config.getLocalizationContextPath())
                 .append(config.getLocalizationSearchEndpoint()).append("?").append("locale=").append(locale)
-                .append("&tenantId=").append(tenantId).append("&module=").append(NOTIFICATION_MODULENAME);
+                .append("&tenantId=").append(tenantId);
 
         return uri;
     }
