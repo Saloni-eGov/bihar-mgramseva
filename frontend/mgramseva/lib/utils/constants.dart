@@ -1,13 +1,14 @@
 import 'package:mgramseva/icons/home_icons_icons.dart';
 import 'package:mgramseva/icons/home_icons_modified_icons.dart';
-import 'package:mgramseva/routers/Routers.dart';
-import 'package:mgramseva/utils/Constants/I18KeyConstants.dart';
+import 'package:mgramseva/routers/routers.dart';
+import 'package:mgramseva/utils/constants/i18_key_constants.dart';
 import 'package:mgramseva/utils/models.dart';
 
 // ignore: non_constant_identifier_names
 class Constants {
   static const int PAGINATION_LIMIT = 75;
   static const int MAX_PDF_PAGES = 100;
+  static const String HOME_NOTIFICATIONS_LIMIT = "50";
 
   /// Package Name
   static const String PACKAGE_NAME = "com.dwss.mgramseva";
@@ -24,6 +25,7 @@ class Constants {
   static const String ADD_EXPENSE_KEY = 'add_expense_key';
   static const String HOME_KEY = 'home_key';
   static const String APP_VERSION = 'appversion';
+  static const String BUILD_NUMBER = 'buildNumber';
 
   static List<KeyValue> GENDER = [
     KeyValue('CORE_COMMON_GENDER_MALE', 'MALE'),
@@ -91,6 +93,11 @@ class Constants {
         (i18.homeWalkThroughMSg.GPWSC_DASHBOARD_MSG),
         HomeIcons.dashboard,
         Routes.DASHBOARD, {}),
+    HomeItem(
+        "CORE_GPWSC_DETAILS_AND_RATE_INFO",
+        (i18.dashboard.CORE_GPWSC_DETAILS_AND_RATE_INFO),
+        HomeIcons.gpwscdetails,
+        Routes.GPWSC_DETAILS_AND_RATE_INFO, {}),
   ];
 
   static List<KeyValue> SERVICECATEGORY = [
@@ -109,11 +116,15 @@ class Constants {
     KeyValue(i18.common.CUSTOM_AMOUNT, 'customAmount'),
   ];
 
-  static List<KeyValue> PAYMENT_METHOD = [
-    KeyValue(i18.common.ONLINE, 'ONLINE'),
-    KeyValue(i18.common.CHEQUE, 'CHEQUE'),
+  static List<KeyValue> CONSUMER_PAYMENT_METHOD = [
+    KeyValue(i18.common.PAYGOV, 'PAYGOV'),
+    KeyValue(i18.common.OFFLINE_NEFT, 'OFFLINE_NEFT'),
+    KeyValue(i18.common.OFFLINE_RTGS, 'OFFLINE_RTGS'),
+    KeyValue(i18.common.POSTAL_ORDER, 'POSTAL_ORDER'),
+  ];
+
+  static List<KeyValue> EMPLOYEE_PAYMENT_METHOD = [
     KeyValue(i18.common.CASH, 'CASH'),
-    KeyValue(i18.common.DD, 'DD'),
     KeyValue(i18.common.OFFLINE_NEFT, 'OFFLINE_NEFT'),
     KeyValue(i18.common.OFFLINE_RTGS, 'OFFLINE_RTGS'),
     KeyValue(i18.common.POSTAL_ORDER, 'POSTAL_ORDER'),
@@ -144,9 +155,12 @@ class Constants {
   static const String INVALID_EXCEPTION_CODE = 'InvalidAccessTokenException';
 
   static List<KeyValue> CONSUMER_PAYMENT_TYPE = [
-  KeyValue(i18.common.ARREARS, 'arrears'),
-  KeyValue(i18.common.CORE_ADVANCE, 'advance'),
+    KeyValue(i18.common.ARREARS, 'arrears'),
+    KeyValue(i18.common.CORE_ADVANCE, 'advance'),
   ];
 
-
+  static List<String> DOWNLOAD_OPTIONS = [
+    i18.householdRegister.PDF,
+    i18.householdRegister.EXCEL
+  ];
 }

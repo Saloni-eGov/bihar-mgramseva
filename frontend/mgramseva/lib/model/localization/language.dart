@@ -6,6 +6,8 @@ import 'package:mgramseva/model/mdms/property_type.dart';
 import 'package:mgramseva/model/mdms/sub_category_type.dart';
 import 'package:mgramseva/model/mdms/tax_period.dart';
 
+import '../../repository/water_services_calculation.dart';
+
 class LanguageList {
   dynamic? responseInfo;
   MdmsRes? mdmsRes;
@@ -37,6 +39,7 @@ class MdmsRes {
   Category? category;
   SubCategory? subCategory;
   TaxPeriodListModel? taxPeriodList;
+  WCBillingSlabs? wcBillingSlabList;
 
   MdmsRes({this.commonMasters});
 
@@ -65,6 +68,9 @@ class MdmsRes {
     taxPeriodList = json['BillingService'] != null
         ? new TaxPeriodListModel.fromJson(json['BillingService'])
         : null;
+    wcBillingSlabList = json['ws-services-calculation'] != null
+        ? new WCBillingSlabs.fromJson(json['ws-services-calculation'])
+        : null;
   }
 
   Map<String, dynamic> toJson() {
@@ -78,14 +84,20 @@ class MdmsRes {
 
 class CommonMasters {
   List<StateInfo>? stateInfo;
-
-  CommonMasters({this.stateInfo});
+  List<AppVersion>? appVersion;
+  CommonMasters({this.stateInfo, this.appVersion});
 
   CommonMasters.fromJson(Map<String, dynamic> json) {
     if (json['StateInfo'] != null) {
       stateInfo = <StateInfo>[];
       json['StateInfo'].forEach((v) {
         stateInfo?.add(new StateInfo.fromJson(v));
+      });
+    }
+    if (json['AppVersion'] != null) {
+      appVersion = <AppVersion>[];
+      json['AppVersion'].forEach((v) {
+        appVersion?.add(new AppVersion.fromJson(v));
       });
     }
   }
@@ -95,6 +107,29 @@ class CommonMasters {
     if (this.stateInfo != null) {
       data['StateInfo'] = this.stateInfo?.map((v) => v.toJson()).toList();
     }
+    if (this.appVersion != null) {
+      data['AppVersion'] = this.appVersion?.map((v) => v.toJson()).toList();
+    }
+    return data;
+  }
+}
+
+class AppVersion {
+  String? latestAppVersion;
+  // List<LocalizationModules>? localizationModules;
+
+  AppVersion({
+    this.latestAppVersion,
+  });
+
+  AppVersion.fromJson(Map<String, dynamic> json) {
+    latestAppVersion = json['latestAppVersion'];
+  }
+
+  Map<String, dynamic> toJson() {
+    final Map<String, dynamic> data = new Map<String, dynamic>();
+    data['latestAppVersion'] = this.latestAppVersion;
+
     return data;
   }
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
-import 'dart:typed_data';
+import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_share_me/flutter_share_me.dart';
@@ -8,39 +9,37 @@ import 'package:mgramseva/model/bill/bill_payments.dart';
 import 'package:mgramseva/model/demand/demand_list.dart';
 import 'package:mgramseva/model/file/file_store.dart';
 import 'package:mgramseva/model/localization/language.dart';
+import 'package:mgramseva/model/localization/localization_label.dart';
 import 'package:mgramseva/model/mdms/payment_type.dart';
 import 'package:mgramseva/model/user/user_details.dart';
-import 'package:mgramseva/model/userProfile/user_profile.dart';
+import 'package:mgramseva/model/user_profile/user_profile.dart';
 import 'package:mgramseva/providers/language.dart';
-import 'dart:convert';
-import 'package:mgramseva/model/localization/localization_label.dart';
 import 'package:mgramseva/repository/core_repo.dart';
-import 'package:mgramseva/routers/Routers.dart';
-import 'package:mgramseva/services/LocalStorage.dart';
-import 'package:mgramseva/services/MDMS.dart';
-import 'package:mgramseva/utils/Constants/I18KeyConstants.dart';
-import 'package:mgramseva/utils/Locilization/application_localizations.dart';
+import 'package:mgramseva/routers/routers.dart';
+import 'package:mgramseva/services/local_storage.dart';
+import 'package:mgramseva/services/mdms.dart';
+import 'package:mgramseva/utils/constants/i18_key_constants.dart';
+import 'package:mgramseva/utils/localization/application_localizations.dart';
 import 'package:mgramseva/utils/constants.dart';
 import 'package:mgramseva/utils/date_formats.dart';
 import 'package:mgramseva/utils/error_logging.dart';
 import 'package:mgramseva/utils/global_variables.dart';
 import 'package:mgramseva/utils/loaders.dart';
 import 'package:mgramseva/utils/models.dart';
-import 'package:mgramseva/utils/notifyers.dart';
+import 'package:pdf/widgets.dart' as pw;
 import 'package:provider/provider.dart';
-import 'package:flutter/foundation.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:universal_html/html.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:url_launcher/url_launcher.dart';
-import 'package:pdf/widgets.dart' as pw;
 
 import '../model/demand/update_demand_list.dart';
+import '../utils/notifiers.dart';
 
 class CommonProvider with ChangeNotifier {
   List<LocalizationLabel> localizedStrings = <LocalizationLabel>[];
   var userLoggedStreamCtrl = StreamController.broadcast();
   UserDetails? userDetails;
+  AppVersion? appVersion;
   static Map<String, String> downloadUrl = {};
 
   dispose() {
@@ -136,7 +135,7 @@ class CommonProvider with ChangeNotifier {
     }
   }
 
-  set loginCredentails(UserDetails? loginDetails) {
+  set loginCredentials(UserDetails? loginDetails) {
     userDetails = loginDetails;
     if (kIsWeb) {
       window.localStorage[Constants.LOGIN_KEY] =
@@ -172,37 +171,37 @@ class CommonProvider with ChangeNotifier {
   }
 
   Future<String> getWalkThroughCheck(String key) async {
-    var userReposne;
+    var userResponse;
     try {
       if (kIsWeb) {
-        userReposne = window.localStorage[key];
+        userResponse = window.localStorage[key];
       } else {
-        userReposne = (await storage.read(key: key));
+        userResponse = (await storage.read(key: key));
       }
     } catch (e) {
       userLoggedStreamCtrl.add(null);
     }
-    if (userReposne == null) {
-      userReposne = 'false';
+    if (userResponse == null) {
+      userResponse = 'false';
     }
-    return userReposne;
+    return userResponse;
   }
 
   Future<UserProfile> getUserProfile() async {
-    var userReposne;
+    var userResponse;
     try {
       if (kIsWeb) {
-        userReposne = window.localStorage[Constants.USER_PROFILE_KEY];
+        userResponse = window.localStorage[Constants.USER_PROFILE_KEY];
       } else {
-        userReposne = await storage.read(key: Constants.USER_PROFILE_KEY);
+        userResponse = await storage.read(key: Constants.USER_PROFILE_KEY);
       }
     } catch (e) {
       userLoggedStreamCtrl.add(null);
     }
-    return UserProfile.fromJson(jsonDecode(userReposne));
+    return UserProfile.fromJson(jsonDecode(userResponse));
   }
 
-  Future<void> getLoginCredentails() async {
+  Future<void> getLoginCredentials() async {
     var languageProvider = Provider.of<LanguageProvider>(
         navigatorKey.currentContext!,
         listen: false);
@@ -214,22 +213,32 @@ class CommonProvider with ChangeNotifier {
 
         stateResponse = window.localStorage[Constants.STATES_KEY];
       } else {
-         var isUpdated = false;
-          try {
-              if (!await storage.containsKey(key:Constants.APP_VERSION)) {
-                await storage.deleteAll();
-                isUpdated = true;
-                storage.write(key: Constants.APP_VERSION, value: packageInfo?.version);
-              } else {
-                if (await storage.read(key: Constants.APP_VERSION) != packageInfo?.version) {
-                  await storage.deleteAll();
-                  isUpdated = true;
-                  storage.write(key: Constants.APP_VERSION, value: packageInfo?.version);
-                }
+        var isUpdated = false;
+        try {
+          if (!await storage.containsKey(key: Constants.APP_VERSION) ||
+              !await storage.containsKey(key: Constants.BUILD_NUMBER)) {
+            await storage.deleteAll();
+            isUpdated = true;
+            storage.write(
+                key: Constants.APP_VERSION, value: packageInfo?.version);
+            storage.write(
+                key: Constants.BUILD_NUMBER, value: packageInfo?.buildNumber);
+          } else {
+            if (await storage.read(key: Constants.APP_VERSION) !=
+                    packageInfo?.version ||
+                await storage.read(key: Constants.BUILD_NUMBER) !=
+                    packageInfo?.buildNumber) {
+              await storage.deleteAll();
+              isUpdated = true;
+              storage.write(
+                  key: Constants.APP_VERSION, value: packageInfo?.version);
+              storage.write(
+                  key: Constants.BUILD_NUMBER, value: packageInfo?.buildNumber);
             }
-          } catch (e) {}
+          }
+        } catch (e) {}
 
-        if(!isUpdated) {
+        if (!isUpdated) {
           loginResponse = await storage.read(key: Constants.LOGIN_KEY);
           stateResponse = await storage.read(key: Constants.STATES_KEY);
         }
@@ -252,6 +261,16 @@ class CommonProvider with ChangeNotifier {
     }
   }
 
+  Future<void> getAppVersionDetails() async {
+    try {
+      var localizationList =
+          await CoreRepository().getMdms(initRequestBody({"tenantId": "pb"}));
+      appVersion = localizationList.mdmsRes!.commonMasters!.appVersion!.first;
+    } catch (e) {
+      print(e.toString());
+    }
+  }
+
   UserDetails? getWebLoginStatus() {
     var languageProvider = Provider.of<LanguageProvider>(
         navigatorKey.currentContext!,
@@ -261,23 +280,29 @@ class CommonProvider with ChangeNotifier {
     dynamic stateResponse;
 
     var isUpdated = false;
-    if (!window.localStorage.containsKey(Constants.APP_VERSION)) {
+    if (!window.localStorage.containsKey(Constants.APP_VERSION) ||
+        !window.localStorage.containsKey(Constants.BUILD_NUMBER)) {
       window.localStorage.clear();
       isUpdated = true;
       window.localStorage[Constants.APP_VERSION] = packageInfo?.version ?? '';
+      window.localStorage[Constants.BUILD_NUMBER] =
+          packageInfo?.buildNumber ?? '';
     } else {
-      if (window.localStorage[Constants.APP_VERSION] !=
-          packageInfo?.version) {
+      if (window.localStorage[Constants.APP_VERSION] != packageInfo?.version ||
+          window.localStorage[Constants.BUILD_NUMBER] !=
+              packageInfo?.buildNumber) {
         window.localStorage.clear();
         isUpdated = true;
         window.localStorage[Constants.APP_VERSION] = packageInfo?.version ?? '';
+        window.localStorage[Constants.BUILD_NUMBER] =
+            packageInfo?.buildNumber ?? '';
       }
     }
 
-    if(!isUpdated) {
+    if (!isUpdated) {
       loginResponse = window.localStorage[Constants.LOGIN_KEY];
       stateResponse = window.localStorage[Constants.STATES_KEY];
-    }else{
+    } else {
       userDetails = null;
     }
 
@@ -303,7 +328,7 @@ class CommonProvider with ChangeNotifier {
   void onLogout() {
     navigatorKey.currentState
         ?.pushNamedAndRemoveUntil(Routes.SELECT_LANGUAGE, (route) => false);
-    loginCredentails = null;
+    loginCredentials = null;
   }
 
   void onTapOfAttachment(FileStore store, context) async {
@@ -333,23 +358,30 @@ class CommonProvider with ChangeNotifier {
         var link;
         if (mobileNumber == null) {
           final FlutterShareMe flutterShareMe = FlutterShareMe();
-         var response = await flutterShareMe.shareToWhatsApp(
-              msg: input.toString().replaceFirst('{link}', res!)) ?? '';
-          if(response.contains('PlatformException')){
+          var response = await flutterShareMe.shareToWhatsApp(
+                  msg: input.toString().replaceFirst('{link}', res!)) ??
+              '';
+          if (response.contains('PlatformException')) {
             link = "https://api.whatsapp.com/send?text=" +
-                input.toString().replaceAll(" ", "%20").replaceFirst('{link}', res);
+                input
+                    .toString()
+                    .replaceAll(" ", "%20")
+                    .replaceFirst('{link}', res);
             await canLaunch(link)
                 ? launch(link)
-                : ErrorHandler.logError('failed to launch the url ${link}');
+                : ErrorHandler.logError('failed to launch the url $link');
           }
           return;
         } else {
           link = "https://wa.me/+91$mobileNumber?text=" +
-              input.toString().replaceAll(" ", "%20").replaceFirst('{link}', res!);
+              input
+                  .toString()
+                  .replaceAll(" ", "%20")
+                  .replaceFirst('{link}', res!);
         }
         await canLaunch(link)
             ? launch(link)
-            : ErrorHandler.logError('failed to launch the url ${link}');
+            : ErrorHandler.logError('failed to launch the url $link');
       }
     } catch (e, s) {
       ErrorHandler.logError(e.toString(), s);
@@ -499,6 +531,18 @@ class CommonProvider with ChangeNotifier {
     }
   }
 
+  static List<KeyValue> getAlphabetsWithKeyValue() {
+    List<String> alphabets = [];
+    List<KeyValue> excelColumns = [];
+    for (int i = 65; i <= 90; i++) {
+      alphabets.add(String.fromCharCode(i));
+    }
+    for (int i = 0; i < 26; i++) {
+      excelColumns.add(KeyValue(alphabets[i], i));
+    }
+    return excelColumns;
+  }
+
   Future<pw.Font> getPdfFontFamily() async {
     var language = Provider.of<LanguageProvider>(navigatorKey.currentContext!,
         listen: false);
@@ -543,39 +587,41 @@ class CommonProvider with ChangeNotifier {
   //   return amount;
   // }
 
-  static  String getAdvanceAdjustedAmount(List<Demands> demandList) {
-    var amount = '0.0';
+  static String getAdvanceAdjustedAmount(List<Demands> demandList) {
+    var amount = '0';
     var index = -1;
 
     if (demandList.isEmpty) return amount;
 
-    var filteredDemands = demandList.where((e) =>
-    !(e.isPaymentCompleted ?? false))
-        .toList();
-    if( filteredDemands.first.demandDetails?.first.taxHeadMasterCode == 'WS_TIME_PENALTY'
-      && CommonProvider.getPenaltyApplicable(demandList).penaltyApplicable != 0) {
+    var filteredDemands =
+        demandList.where((e) => !(e.isPaymentCompleted ?? false)).toList();
+    if (filteredDemands.first.demandDetails?.first.taxHeadMasterCode ==
+            'WS_TIME_PENALTY' &&
+        CommonProvider.getPenaltyApplicable(demandList).penaltyApplicable !=
+            0) {
       return amount;
-    }
-
-    else {
+    } else {
       for (int i = 0; i < filteredDemands.length; i++) {
-        index = demandList[i].demandDetails?.lastIndexWhere((e) =>
-        e.taxHeadMasterCode == 'WS_ADVANCE_CARRYFORWARD') ?? -1;
+        index = demandList[i].demandDetails?.lastIndexWhere(
+                (e) => e.taxHeadMasterCode == 'WS_ADVANCE_CARRYFORWARD') ??
+            -1;
 
         if (index != -1) {
           var demandDetail = demandList[i].demandDetails?[index];
           if (demandDetail!.collectionAmount!.abs() <
               demandDetail.taxAmount!.abs()) {
             amount = filteredDemands.first.demandDetails?.last.collectionAmount
-                ?.toString() ?? '0.0';
-          } else
-          if (demandDetail.collectionAmount! == demandDetail.taxAmount!) {
+                    ?.toString() ??
+                '0.0';
+          } else if (demandDetail.collectionAmount! ==
+              demandDetail.taxAmount!) {
             if (filteredDemands.first.demandDetails?.last.collectionAmount !=
                 0) {
               var list = <double>[];
               for (int j = 0; j <= i; j++) {
-                for (int k = 0; k <
-                    (filteredDemands[j].demandDetails?.length ?? 0); k++) {
+                for (int k = 0;
+                    k < (filteredDemands[j].demandDetails?.length ?? 0);
+                    k++) {
                   if (k == index && j == i) break;
                   list.add(
                       filteredDemands[j].demandDetails![k].collectionAmount ??
@@ -584,9 +630,11 @@ class CommonProvider with ChangeNotifier {
               }
               var collectedAmount = list.reduce((a, b) => a + b);
               amount = double.parse("$collectedAmount") >=
-                  double.parse("${demandDetail.collectionAmount?.abs()}")
+                      double.parse("${demandDetail.collectionAmount?.abs()}")
                   ? filteredDemands.first.demandDetails?.last.collectionAmount
-                  ?.toString() ?? '0.0' : '0.0';
+                          ?.toString() ??
+                      '0'
+                  : '0';
             }
           }
         }
@@ -596,85 +644,104 @@ class CommonProvider with ChangeNotifier {
   }
 
   static double getTotalBillAmount(List<Demands> demandList) {
-    if(!isFirstDemand(demandList)){
+    if (!isFirstDemand(demandList)) {
       var amount = 0.0;
       demandList.first.demandDetails?.forEach((demand) {
-        if(demand.taxHeadMasterCode == '10102' || demand.taxHeadMasterCode == '10201' || demand.taxHeadMasterCode == 'WS_TIME_PENALTY')
+        if (demand.taxHeadMasterCode == '10102' ||
+            demand.taxHeadMasterCode == '10201' ||
+            demand.taxHeadMasterCode == 'WS_TIME_PENALTY')
           amount += ((demand.taxAmount ?? 0) - (demand.collectionAmount ?? 0));
       });
       return amount;
     }
-    return ((CommonProvider.checkAdvance(demandList) ? (demandList.first.demandDetails?.first.taxAmount ?? 0)
-            : (demandList.first.demandDetails?.first.taxAmount ?? 0) - (demandList.first.demandDetails?.first.collectionAmount ?? 0)) + CommonProvider.getArrearsAmount(demandList));
-
+    return ((CommonProvider.checkAdvance(demandList)
+            ? (demandList.first.demandDetails?.first.taxAmount ?? 0)
+            : (demandList.first.demandDetails?.first.taxAmount ?? 0) -
+                (demandList.first.demandDetails?.first.collectionAmount ?? 0)) +
+        CommonProvider.getArrearsAmount(demandList));
   }
 
-  static num getNetDueAmountWithWithOutPenalty(num totalAmount, Penalty penalty, [bool withPenalty = false]){
-    if(withPenalty) return totalAmount >= 0 ? (penalty.isDueDateCrossed ? totalAmount : totalAmount + penalty.penalty) :  penalty.penalty;
-    return totalAmount >= 0 ? (totalAmount) : 0.0;
+  static num getNetDueAmountWithWithOutPenalty(num totalAmount, Penalty penalty,
+      [bool withPenalty = false]) {
+    if (withPenalty)
+      return totalAmount >= 0
+          ? (penalty.isDueDateCrossed
+              ? totalAmount
+              : totalAmount + penalty.penalty)
+          : penalty.penalty;
+    return totalAmount;
   }
 
-  static bool isFirstDemand(List<Demands> demandList){
+  static bool isFirstDemand(List<Demands> demandList) {
     var isFirstDemand = false;
 
-
-    if(demandList.isEmpty == true) {
+    if (demandList.isEmpty == true) {
       isFirstDemand = false;
     } else if (demandList.length == 1 &&
         demandList.first.consumerType == 'waterConnection-arrears') {
       isFirstDemand = false;
-    } else if(demandList.length == 1 && demandList.first.consumerType == 'waterConnection-advance' && demandList.first.demandDetails?.first.taxHeadMasterCode == 'WS_ADVANCE_CARRYFORWARD'){
+    } else if (demandList.length == 1 &&
+        demandList.first.consumerType == 'waterConnection-advance' &&
+        demandList.first.demandDetails?.first.taxHeadMasterCode ==
+            'WS_ADVANCE_CARRYFORWARD') {
       isFirstDemand = false;
-    }else {
+    } else {
       isFirstDemand = true;
     }
     return isFirstDemand;
   }
 
-  static double getNormalPenalty(List<Demands> demandList){
+  static double getNormalPenalty(List<Demands> demandList) {
     var penalty = 0.0;
 
-    var filteredDemands = demandList.where((e) =>
-    !(e.isPaymentCompleted ?? false))
-        .toList();
+    var filteredDemands =
+        demandList.where((e) => !(e.isPaymentCompleted ?? false)).toList();
 
     filteredDemands.forEach((billDetails) {
       billDetails.demandDetails?.forEach((billAccountDetails) {
-        if(billAccountDetails.taxHeadMasterCode == '10201'){
-          penalty += ((billAccountDetails.taxAmount ?? 0) - (billAccountDetails.collectionAmount ?? 0));
+        if (billAccountDetails.taxHeadMasterCode == '10201') {
+          penalty += ((billAccountDetails.taxAmount ?? 0) -
+              (billAccountDetails.collectionAmount ?? 0));
         }
       });
     });
     return penalty;
   }
 
-  static double getCurrentBill(List<Demands> demandList){
+  List<String>? uniqueRolesList() {
+    return userDetails?.userRequest?.roles
+        ?.where((e) => e.tenantId == userDetails?.selectedtenant?.code)
+        .map((role) => role.code.toString())
+        .toSet()
+        .toList();
+  }
+
+  static double getCurrentBill(List<Demands> demandList) {
     var currentBill = 0.0;
     var currentBillLeft = 0.0;
 
-    var filteredDemands = demandList.where((e) =>
-    !(e.isPaymentCompleted ?? false));
+    var filteredDemands =
+        demandList.where((e) => !(e.isPaymentCompleted ?? false));
 
     filteredDemands.forEach((elem) {
       elem.demandDetails?.forEach((demand) {
-        if(demand.taxHeadMasterCode == '10101'){
-          currentBillLeft = ((demand.taxAmount ?? 0) - (demand.collectionAmount ?? 0));
+        if (demand.taxHeadMasterCode == '10101') {
+          currentBillLeft =
+              ((demand.taxAmount ?? 0) - (demand.collectionAmount ?? 0));
         }
       });
     });
 
-    if(currentBillLeft == 0) {
+    if (currentBillLeft == 0) {
       filteredDemands.first.demandDetails?.forEach((billAccountDetails) {
-        if (billAccountDetails.taxHeadMasterCode == '10101' ) {
-          currentBill +=  ((billAccountDetails.taxAmount ?? 0) -
+        if (billAccountDetails.taxHeadMasterCode == '10101') {
+          currentBill += ((billAccountDetails.taxAmount ?? 0) -
               (billAccountDetails.collectionAmount ?? 0));
         }
       });
-    }
-    else{
+    } else {
       currentBill = currentBillLeft;
     }
-
 
     return currentBill;
   }
@@ -682,65 +749,73 @@ class CommonProvider with ChangeNotifier {
   static Penalty getPenalty(List<UpdateDemands>? demandList) {
     Penalty? penalty;
 
-    var filteredDemands = demandList?.where((e) =>
-    !(e.isPaymentCompleted ?? false)).first;
+    var filteredDemands =
+        demandList?.where((e) => !(e.isPaymentCompleted ?? false)).first;
 
-      filteredDemands?.demandDetails?.forEach((billAccountDetails) {
-        if(billAccountDetails.taxHeadMasterCode == 'WS_TIME_PENALTY'){
-          var amount =  billAccountDetails.taxAmount?? 0;
-          DateTime billGenerationDate,expiryDate;
-          // DateTime.fromMillisecondsSinceEpoch(1659420829000);
-          var date = billAccountDetails.auditDetails != null ?
-          DateTime.fromMillisecondsSinceEpoch(billAccountDetails.auditDetails!.createdTime ?? 0)
-           : DateTime.fromMillisecondsSinceEpoch(filteredDemands.demandDetails?.first.auditDetails!.createdTime ?? 0);
-          billGenerationDate = expiryDate = DateTime(date.year, date.month, date.day);
-           expiryDate =  expiryDate.add(Duration(milliseconds: filteredDemands.billExpiryTime ?? 0, days: 0));
-          penalty = Penalty(amount.toDouble(), DateFormats.getFilteredDate(expiryDate.toString()), DateTime.now().isAfter(expiryDate));
-        }
-      });
+    filteredDemands?.demandDetails?.forEach((billAccountDetails) {
+      if (billAccountDetails.taxHeadMasterCode == 'WS_TIME_PENALTY') {
+        var amount = billAccountDetails.taxAmount ?? 0;
+        DateTime billGenerationDate, expiryDate;
+        // DateTime.fromMillisecondsSinceEpoch(1659420829000);
+        var date = billAccountDetails.auditDetails != null
+            ? DateTime.fromMillisecondsSinceEpoch(
+                billAccountDetails.auditDetails!.createdTime ?? 0)
+            : DateTime.fromMillisecondsSinceEpoch(filteredDemands
+                    .demandDetails?.first.auditDetails!.createdTime ??
+                0);
+        billGenerationDate =
+            expiryDate = DateTime(date.year, date.month, date.day);
+        expiryDate = expiryDate.add(Duration(
+            milliseconds: filteredDemands.billExpiryTime ?? 0, days: 0));
+        penalty = Penalty(
+            amount.toDouble(),
+            DateFormats.getFilteredDate(expiryDate.toString()),
+            DateTime.now().isAfter(expiryDate));
+      }
+    });
     return penalty ?? Penalty(0.0, '', false);
   }
 
   static PenaltyApplicable getPenaltyApplicable(List<Demands>? demandList) {
     var res = [];
-    var filteredDemands = demandList?.where((e) =>
-    !(e.isPaymentCompleted ?? false))
-        .toList();
+    var filteredDemands =
+        demandList?.where((e) => !(e.isPaymentCompleted ?? false)).toList();
 
-    if(demandList?.first.demandDetails?.first.taxHeadMasterCode == 'WS_TIME_PENALTY'){
-        filteredDemands?.first.demandDetails!.forEach((e) {
-          if (e.taxHeadMasterCode == 'WS_TIME_PENALTY') {
-            res.add((e.taxAmount ?? 0) - (e.collectionAmount ?? 0));
-          }
-        });
-      }
-
-    else {
-        filteredDemands?.first.demandDetails!.forEach((e) {
-          if (e.taxHeadMasterCode == 'WS_TIME_PENALTY' ||
-              e.taxHeadMasterCode == '10201') {
-            res.add((e.taxAmount ?? 0) - (e.collectionAmount ?? 0));
-          }
-        });
-
+    if (demandList?.first.demandDetails?.first.taxHeadMasterCode ==
+        'WS_TIME_PENALTY') {
+      filteredDemands?.first.demandDetails!.forEach((e) {
+        if (e.taxHeadMasterCode == 'WS_TIME_PENALTY') {
+          res.add((e.taxAmount ?? 0) - (e.collectionAmount ?? 0));
+        }
+      });
+    } else {
+      filteredDemands?.first.demandDetails!.forEach((e) {
+        if (e.taxHeadMasterCode == 'WS_TIME_PENALTY' ||
+            e.taxHeadMasterCode == '10201') {
+          res.add((e.taxAmount ?? 0) - (e.collectionAmount ?? 0));
+        }
+      });
     }
 
-    var penaltyAmount = res.length == 0 ? 0 : ((res.reduce((previousValue,
-        element) =>
-    previousValue +
-        element)) as double).abs();
-
+    var penaltyAmount = res.length == 0
+        ? 0
+        : ((res.reduce((previousValue, element) => previousValue + element))
+                as double)
+            .abs();
 
     return PenaltyApplicable(penaltyAmount.toDouble());
   }
 
-  static  num getAdvanceAmount(List<Demands> demandList) {
+  static num getAdvanceAmount(List<Demands> demandList) {
     var amount = 0.0;
     var index = -1;
-    for(int i =0; i < demandList.length; i++){
-      index = demandList[i].demandDetails?.lastIndexWhere((e) => e.taxHeadMasterCode == 'WS_ADVANCE_CARRYFORWARD') ?? -1;
-      if(index != -1){
-        amount = (demandList[i].demandDetails![index].taxAmount ?? 0) - (demandList[i].demandDetails![index].collectionAmount ?? 0);
+    for (int i = 0; i < demandList.length; i++) {
+      index = demandList[i].demandDetails?.lastIndexWhere(
+              (e) => e.taxHeadMasterCode == 'WS_ADVANCE_CARRYFORWARD') ??
+          -1;
+      if (index != -1) {
+        amount = (demandList[i].demandDetails![index].taxAmount ?? 0) -
+            (demandList[i].demandDetails![index].collectionAmount ?? 0);
         break;
       }
     }
@@ -750,106 +825,134 @@ class CommonProvider with ChangeNotifier {
   static double getArrearsAmount(List<Demands> demandList) {
     List res = [];
 
-    if(!isFirstDemand(demandList)){
+    if (!isFirstDemand(demandList)) {
       var arrearsAmount = 0.0;
       demandList.first.demandDetails?.forEach((demand) {
-        if(demand.taxHeadMasterCode == '10102') arrearsAmount += ((demand.taxAmount ?? 0) - (demand.collectionAmount ?? 0));
+        if (demand.taxHeadMasterCode == '10102')
+          arrearsAmount +=
+              ((demand.taxAmount ?? 0) - (demand.collectionAmount ?? 0));
       });
       return arrearsAmount;
     }
 
-
     if (demandList.isNotEmpty) {
-      var filteredDemands = demandList.where((e) => (!(e.isPaymentCompleted ?? false) && e.status != 'CANCELLED'))
+      var filteredDemands = demandList
+          .where((e) =>
+              (!(e.isPaymentCompleted ?? false) && e.status != 'CANCELLED'))
           .toList();
       for (var demand in filteredDemands) {
         demand.demandDetails!.forEach((e) {
-          if (e.taxHeadMasterCode != 'WS_ADVANCE_CARRYFORWARD'){
-            res.add((e.taxAmount ?? 0) - (e.collectionAmount ?? 0));
-          }
-        });
-      }
-    }
-
-    var arrearsDeduction = (demandList.first.demandDetails?.first.taxHeadMasterCode != 'WS_ADVANCE_CARRYFORWARD'
-        && demandList.first.demandDetails?.first.taxHeadMasterCode != 'WS_TIME_PENALTY') ?
-    ((demandList.first.demandDetails?.first.taxAmount ?? 0) - (demandList.first.demandDetails?.first.collectionAmount ?? 0)) : 0;
-
-    return res.length == 0 ? 0 : ((res.reduce((previousValue,
-        element) =>
-    previousValue +
-        element) - arrearsDeduction) as double).abs();
-  }
-
-  static double getArrearsAmountOncePenaltyExpires(List<Demands> demandList) {
-    List res = [];
-    var arrearsDeduction = 0.0 ;
-    var penaltyDeduction = 0.0;
-
-    if(!isFirstDemand(demandList)){
-      var arrearsAmount = 0.0;
-      demandList.first.demandDetails?.forEach((demand) {
-        if(demand.taxHeadMasterCode == '10102') arrearsAmount += ((demand.taxAmount ?? 0) - (demand.collectionAmount ?? 0));
-      });
-      return arrearsAmount;
-    }
-
-
-    if (demandList.isNotEmpty  ) {
-      var filteredDemands = demandList.where((e) => (!(e.isPaymentCompleted ?? false) && e.status != 'CANCELLED')).toList();
-
-      filteredDemands.forEach((elem) {
-        elem.demandDetails?.forEach((element) {
-          if(element.taxHeadMasterCode == '10101'){
-            arrearsDeduction = ((element.taxAmount ?? 0) - (element.collectionAmount ?? 0)) ;
-          }
-        });
-      });
-
-      filteredDemands.first.demandDetails?.forEach((element) {
-          if(element.taxHeadMasterCode == 'WS_TIME_PENALTY'){
-            penaltyDeduction = ((element.taxAmount ?? 0) - (element.collectionAmount ?? 0)) ;
-          }
-        });
-
-      for (var demand in filteredDemands) {
-        demand.demandDetails!.forEach((e) {
-
           if (e.taxHeadMasterCode != 'WS_ADVANCE_CARRYFORWARD') {
             res.add((e.taxAmount ?? 0) - (e.collectionAmount ?? 0));
           }
         });
       }
-
     }
 
+    var arrearsDeduction =
+        (demandList.first.demandDetails?.first.taxHeadMasterCode !=
+                    'WS_ADVANCE_CARRYFORWARD' &&
+                demandList.first.demandDetails?.first.taxHeadMasterCode !=
+                    'WS_TIME_PENALTY')
+            ? ((demandList.first.demandDetails?.first.taxAmount ?? 0) -
+                (demandList.first.demandDetails?.first.collectionAmount ?? 0))
+            : 0;
 
-
-    return res.length == 0 ? 0 : ((res.reduce((previousValue,
-        element) =>
-    previousValue +
-        element) - arrearsDeduction - penaltyDeduction) as double).abs();
+    return res.length == 0
+        ? 0
+        : ((res.reduce((previousValue, element) => previousValue + element) -
+                arrearsDeduction) as double)
+            .abs();
   }
 
-  static Future<PaymentType> getMdmsBillingService() async {
+  static double getArrearsAmountOncePenaltyExpires(List<Demands> demandList) {
+    List res = [];
+    var arrearsDeduction = 0.0;
+    var penaltyDeduction = 0.0;
+
+    if (!isFirstDemand(demandList)) {
+      var arrearsAmount = 0.0;
+      demandList.first.demandDetails?.forEach((demand) {
+        if (demand.taxHeadMasterCode == '10102')
+          arrearsAmount +=
+              ((demand.taxAmount ?? 0) - (demand.collectionAmount ?? 0));
+      });
+      return arrearsAmount;
+    }
+
+    if (demandList.isNotEmpty) {
+      var filteredDemands = demandList
+          .where((e) =>
+              (!(e.isPaymentCompleted ?? false) && e.status != 'CANCELLED'))
+          .toList();
+
+      filteredDemands.forEach((elem) {
+        elem.demandDetails?.forEach((element) {
+          if (element.taxHeadMasterCode == '10101') {
+            arrearsDeduction =
+                ((element.taxAmount ?? 0) - (element.collectionAmount ?? 0));
+          }
+        });
+      });
+
+      filteredDemands.first.demandDetails?.forEach((element) {
+        if (element.taxHeadMasterCode == 'WS_TIME_PENALTY') {
+          penaltyDeduction =
+              ((element.taxAmount ?? 0) - (element.collectionAmount ?? 0));
+        }
+      });
+
+      for (var demand in filteredDemands) {
+        demand.demandDetails!.forEach((e) {
+          if (e.taxHeadMasterCode != 'WS_ADVANCE_CARRYFORWARD') {
+            res.add((e.taxAmount ?? 0) - (e.collectionAmount ?? 0));
+          }
+        });
+      }
+    }
+
+    return res.length == 0
+        ? 0
+        : ((res.reduce((previousValue, element) => previousValue + element) -
+                arrearsDeduction -
+                penaltyDeduction) as double)
+            .abs();
+  }
+
+  static Future<PaymentType> getMdmsBillingService(String tenantId) async {
     try {
       var commonProvider = Provider.of<CommonProvider>(
           navigatorKey.currentContext!,
           listen: false);
 
-      return await CoreRepository().getPaymentTypeMDMS(getMdmsPaymentModes(
-          commonProvider.userDetails!.selectedtenant?.code.toString() ?? commonProvider.userDetails!.userRequest!.tenantId.toString()));
-    }catch(e){
+      return await CoreRepository()
+          .getPaymentTypeMDMS(getMDMSPaymentModes(tenantId));
+    } catch (e) {
       return PaymentType();
     }
   }
 
-  static bool checkAdvance (List<Demands> demandList) {
+  static Future<PaymentType> getMdmsPaymentList(String tenantId) async {
+    try {
+      var commonProvider = Provider.of<CommonProvider>(
+          navigatorKey.currentContext!,
+          listen: false);
+
+      return await CoreRepository()
+          .getPaymentTypeMDMS(getPaymentModeList(tenantId));
+    } catch (e) {
+      return PaymentType();
+    }
+  }
+
+  static bool checkAdvance(List<Demands> demandList) {
     var advance = false;
     var index = -1;
-    for(int i =0; i < demandList.length; i++){
-      index = demandList[i].demandDetails?.lastIndexWhere((e) => e.taxHeadMasterCode == 'WS_ADVANCE_CARRYFORWARD') ?? -1;
-      if(index != -1){
+    for (int i = 0; i < demandList.length; i++) {
+      index = demandList[i].demandDetails?.lastIndexWhere(
+              (e) => e.taxHeadMasterCode == 'WS_ADVANCE_CARRYFORWARD') ??
+          -1;
+      if (index != -1) {
         advance = true;
         break;
       }
@@ -857,11 +960,21 @@ class CommonProvider with ChangeNotifier {
     return advance;
   }
 
- static bool getPenaltyOrAdvanceStatus(PaymentType? languageList, [isAdvance = false, bool isTimePenalty = false]) {
-    if(languageList == null) return false;
-    var index = languageList.mdmsRes?.billingService?.taxHeadMasterList?.indexWhere((e) => e.code == (isAdvance ? 'WS_ADVANCE_CARRYFORWARD' : isTimePenalty ? 'WS_TIME_PENALTY' : '10201'));
-    if(index != null && index != -1){
-      return (languageList.mdmsRes?.billingService?.taxHeadMasterList?[index].isRequired ?? false);
+  static bool getPenaltyOrAdvanceStatus(PaymentType? languageList,
+      [isAdvance = false, bool isTimePenalty = false]) {
+    if (languageList == null) return false;
+    var index = languageList.mdmsRes?.billingService?.taxHeadMasterList
+        ?.indexWhere((e) =>
+            e.code ==
+            (isAdvance
+                ? 'WS_ADVANCE_CARRYFORWARD'
+                : isTimePenalty
+                    ? 'WS_TIME_PENALTY'
+                    : '10201'));
+    if (index != null && index != -1) {
+      return (languageList
+              .mdmsRes?.billingService?.taxHeadMasterList?[index].isRequired ??
+          false);
     }
     return false;
   }
